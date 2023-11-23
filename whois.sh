@@ -1,36 +1,31 @@
 #!/bin/bash
 
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 <wordlist_file>"
-  exit 1
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <filename>"
+    exit 1
 fi
 
-wordlist="$1"
+filename=$1
 
-if [ ! -f "$wordlist" ]; then
-  echo "Error: Wordlist file not found."
-  exit 1
+if [ ! -e "$filename" ]; then
+    echo "Error: File not found: $filename"
+    exit 1
 fi
 
-while read -r word; do
-  if [ -z "$word" ]; then
-    continue  
-  fi
+while IFS= read -r domain; do
+    echo "Checking availability for $domain..."
 
-  # Check if the word contains a dot (indicating it has an extension)
-  if [[ $word == *.* ]]; then
-    domains=("$word")
-  else
-    # Automatically add .com, .net, and .ai extensions
-    domains=("$word.com" "$word.net" "$word.ai")
-  fi
+    result=$(timeout 5 whois "$domain" | head -n 1 2>/dev/null)
 
-  for domain in "${domains[@]}"; do
-    result=$(timeout 8 whois "$domain" | grep -E 'No match for|AVAILABLE|Not found|Domain not found|is available for purchase')
-    if [ -n "$result" ]; then
-      echo "Domain '$domain' is available."
+    if [ $? -eq 124 ]; then
+        echo "Timeout: Unable to check availability for $domain within 8 seconds."
     else
-      echo "Domain '$domain' is not available."
+        if [[ "$result" == *"No match"* ]]; then
+            echo "$domain is available"
+        else
+            echo "$domain is not available."
+        fi
     fi
-  done
-done < "$wordlist"
+
+    echo "--------------------------------------------"
+done < "$filename"
